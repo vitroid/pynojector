@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "pynojector"
+version = "0.1.0"
+description = ""
+authors = ["vitroid <vitroid@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pillow = "^11.2.1"
+numpy = "^2.2.5"
+scipy = "^1.15.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
