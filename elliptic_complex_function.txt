@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+#
+# Author : Moise Rousseau (2020)
+
+from scipy.special import ellipj
+
+def complex_ellipj(x,y,m):
+  #x real part of z
+  # y imaginary part
+  #m parameter (note m=k2 where k is ellipse modulus)
+  
+  sn_x, cn_x, dn_x, ph_x = ellipj(x,m)
+  sn_y, cn_y, dn_y, ph_y = ellipj(y,m)
+  
+  m_ = 1-m
+  sn_x_c, cn_x_x, dn_x_x, ph_x_c = ellipj(x,m_)
+  sn_y_c, cn_y_c, dn_y_c, ph_y_c = ellipj(y,m_)
+  
+  common_den = cn_y_c**2 + m*sn_x**2*sn_y_c**2
+  
+  complex_sn = sn_x*dn_y_c + 1j*sn_y_c*cn_y_c*cn_x*dn_x
+  complex_sn /=  common_den
+  
+  complex_cn = cn_x*cn_y_c - 1j*sn_x*dn_x*sn_y_c*dn_y_c
+  complex_cn /=  common_den
+  
+  complex_dn = dn_x*cn_y_c*dn_y_c - 1j*m*sn_x*cn_x*sn_y_c
+  complex_dn /=  common_den
+  
+  #TODO complex ph ?
+  
+  return complex_sn, complex_cn, complex_dn
+  
+if __name__ == "__main__":
+  complex_sn, complex_cn, complex_dn = complex_ellipj(1.5,3,0.5)
+  #http://functions.wolfram.com/webMathematica/FunctionEvaluation.jsp?name=JacobiSN
+  print("Test complex sn function")
+  print("Mathematica:  sn(1.5+3j,0.5) = 1.098455 - 0.113109j")
+  print("My implementation: {}".format(complex_sn))
+  print("Test complex cn function")
+  print("Mathematica:  cn(1.5+3j,0.5) = -0.246297 - 0.504452j")
+  print("My implementation: {}".format(complex_cn))
+  print("Test complex dn function")
+  print("Mathematica:  dn(1.5+3j,0.5) = -0.642224 - 0.096730j")
+  print("My implementation: {}".format(complex_dn))
