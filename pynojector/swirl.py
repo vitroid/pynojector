@@ -14,6 +14,9 @@ import os
 import subprocess
 import tqdm
 import argparse
+import logging
+
+__all__ = ["get_parser", "make_movie", "movie_iter"]
 
 
 def swirl_projection(
@@ -22,7 +25,8 @@ def swirl_projection(
     bundle: int = 3,
     multiple: int = 9,
     tilt_angle: float = 45,
-    center: tuple[float, float] = (0, 0),
+    centerx: float = 0,
+    centery: float = 0,
 ) -> np.ndarray:
 
     # 関数名のつけかたに困惑している。
@@ -35,7 +39,7 @@ def swirl_projection(
                     z=stack_from_imagestrip(
                         z=mercator_from_stereographic(
                             z=translate(
-                                z=z, dx=center[0] * 2 * np.pi, dy=center[1] * 2 * np.pi
+                                z=z, dx=centerx * 2 * np.pi, dy=centery * 2 * np.pi
                             )
                         ),
                         # z=mercator_from_stereographic(
@@ -72,17 +76,20 @@ def save_movie(
     subprocess.run(cmd, shell=True)
 
 
-def swirl_movie(
+def movie_iter(
     img: Image.Image,
-    temp_dir: str,
-    outfile: str,
+    width: int = 1440,
     duration: float = 3.0,
     fps: int = 60,
     bundle: int = 3,
     multiple: int = 9,
     tilt_angle: float = 45,
-    center: tuple[float, float] = (0, 0),
+    centerx: float = 0,
+    centery: float = 0,
+    **kwargs,
 ):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Ignoring: {kwargs}")
     aspect_ratio = img.size[0] / img.size[1]
     frame_count = int(duration * fps)
     for i in tqdm.tqdm(range(frame_count)):
@@ -93,12 +100,42 @@ def swirl_movie(
             bundle=bundle,
             multiple=multiple,
             tilt_angle=tilt_angle,
-            center=center,
+            centerx=centerx,
+            centery=centery,
         )
-        frame_path = os.path.join(temp_dir, f"frame_{i:06d}.jpg")
-        conversion(projector=projector, src_image=img, size=1440).save(frame_path)
+        yield conversion(projector=projector, src_image=img, size=width)
 
-    save_movie(temp_dir, output=outfile, fps=fps)
+
+def make_movie(
+    img: Image.Image,
+    outfile: str,
+    width: int = 1440,
+    duration: float = 3.0,
+    fps: int = 60,
+    bundle: int = 3,
+    multiple: int = 9,
+    tilt_angle: float = 45,
+    centerx: float = 0,
+    centery: float = 0,
+):
+    aspect_ratio = img.size[0] / img.size[1]
+    frame_count = int(duration * fps)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for i in tqdm.tqdm(range(frame_count)):
+            shift = (np.pi * 2) * aspect_ratio * (i / frame_count)
+            projector = lambda z: swirl_projection(
+                z=z,
+                shift=shift,
+                bundle=bundle,
+                multiple=multiple,
+                tilt_angle=tilt_angle,
+                centerx=centerx,
+                centery=centery,
+            )
+            frame_path = os.path.join(temp_dir, f"frame_{i:06d}.jpg")
+            conversion(projector=projector, src_image=img, size=width).save(frame_path)
+
+        save_movie(temp_dir, output=outfile, fps=fps)
 
 
 def get_parser():
@@ -106,17 +143,25 @@ def get_parser():
     parser.add_argument("filename", type=str, help="Input image file")
     parser.add_argument("--debug", action="store_true", help="Debug mode")
     parser.add_argument(
-        "--duration", type=float, default=3.0, help="Duration of the movie (seconds)"
+        "--duration",
+        type=float,
+        default=3.0,
+        help="Duration of the movie (seconds)-- 1,100",
     )
-    parser.add_argument("--fps", type=int, default=60, help="Frames per second")
-    parser.add_argument("--bundle", type=int, default=3, help="Number of bundles")
-    parser.add_argument("--multiple", type=int, default=9, help="Number of multiples")
-    parser.add_argument("--tilt_angle", type=float, default=45, help="Tilt angle")
+    parser.add_argument("--fps", type=int, default=60, help="Frames per second-- 1,120")
+    parser.add_argument("--bundle", type=int, default=3, help="Number of bundles-- 1,1")
     parser.add_argument(
-        "--centerx", type=float, default=(0, 0), help="Center of the swirl"
+        "--multiple", type=int, default=9, help="Number of multiples-- 1,20"
+    )
+    parser.add_argument("--tilt_angle", type=float, default=45, help="Tilt angle--1,89")
+    parser.add_argument(
+        "--centerx", type=float, default=0, help="Center of the swirl-- -4,4"
     )
     parser.add_argument(
-        "--centery", type=float, default=(0, 0), help="Center of the swirl"
+        "--centery", type=float, default=0, help="Center of the swirl-- -4,4"
+    )
+    parser.add_argument(
+        "--width", type=int, default=1440, help="Width of the movie-- 100,1080"
     )
     return parser
 
@@ -124,37 +169,19 @@ def get_parser():
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    filename = args.filename
-    debug = args.debug
-    duration = args.duration
-    fps = args.fps
-    bundle = args.bundle
-    multiple = args.multiple
-    tilt_angle = args.tilt_angle
-    centerx = args.centerx
-    centery = args.centery
-    center = (centerx, centery)
 
-    img = Image.open(filename)
-    outfile = f"{filename}.swirl.mp4"
+    img = Image.open(args.filename)
+    outfile = f"{args.filename}.swirl.mp4"
+
+    args_dict = vars(args)
+    args_dict.pop("filename")
+    args_dict.pop("debug")
     # print(aspect_ratio)
-    if debug:
-        workarea = "."
-    else:
-        workarea = None
-
-    with tempfile.TemporaryDirectory(dir=workarea) as temp_dir:
-        swirl_movie(
-            img,
-            temp_dir,
-            outfile,
-            duration=duration,
-            fps=fps,
-            bundle=bundle,
-            multiple=multiple,
-            tilt_angle=tilt_angle,
-            center=center,
-        )
+    make_movie(
+        img,
+        outfile,
+        **args_dict,
+    )
 
 
 if __name__ == "__main__":

@@ -16,3 +16,9 @@ tqdm = "^4.67.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "pynojector"
+
+[tool.poetry.plugins."trainscanner.converters"]
+swirl = "pynojector.swirl:get_parser"
