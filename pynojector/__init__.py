@@ -1,9 +1,9 @@
-from PIL import Image
 import sys
 import numpy as np
 from typing import Callable
 import scipy.special as sp
 from dataclasses import dataclass
+import cv2
 
 # 長方形の画像の場合、左右を2とし、上下は周期境界とする。
 # 中心を原点とする。
@@ -139,12 +139,10 @@ def equirectangular_rotation(z: np.ndarray, theta: float) -> np.ndarray:
 
 
 def stack_from_imagestrip(z: np.ndarray, stack_height: int) -> np.ndarray:
-    if stack_height % 2 == 0:
-        raise ValueError("stack_height must be odd")
     r = z.real
     i = z.imag
-    r *= stack_height
-    i *= stack_height
+    r *= 2 * stack_height + 1
+    i *= 2 * stack_height + 1
     return r + 1j * i
 
 
@@ -189,11 +187,11 @@ def imagestrip_from_mercator_ribbon(z: np.ndarray, theta: float) -> np.ndarray:
 
 def conversion(
     projector: Callable[[np.ndarray, float], np.ndarray],
-    src_image: Image.Image,
+    src_image: np.ndarray,
     size: int,
-) -> Image.Image:
-    w, h = src_image.size
-    src_array = np.array(src_image).reshape(-1, 3)
+) -> np.ndarray:
+    h, w = src_image.shape[:2]
+    src_array = src_image.reshape(-1, 3)
 
     dst_array = np.zeros((size**2, 3), dtype=np.uint8)
 
@@ -210,25 +208,11 @@ def conversion(
     pos = pix_x0 + pix_y0 * w
     dst_array[:] = src_array[pos, :]
 
-    return Image.fromarray(dst_array.reshape(size, size, 3))
+    return dst_array.reshape(size, size, 3)
 
 
 def main():
     def projection(z: np.ndarray) -> np.ndarray:
-
-        # 関数名のつけかたに困惑している。
-        # 一番左に、原画像の形式があり、一番右に、出力画像の形式がくるんだが、データの流れは逆向きなんだよね。
-
-        # return mercator_from_equirectangular(equirectangular_from_mercator(z))
-        # return equirectangular_from_mercator(z)
-        # return z
-        # return stereographic_from_equirectangular(equirectangular_from_stereographic(z))
-        # return np.log(0.5 + z / 2)
-        # return mercator_from_stereographic(
-        #     stereographic_from_peirce_quincuncial(z)
-        # )
-        # return mercator_from_equirectangular(equirectangular_rotation(z, np.radians(30)))
-        # return mercator_from_equirectangular(z)
         z = flip(
             stack_from_imagestrip(
                 z=imagestrip_from_mercator_ribbon(
@@ -243,9 +227,12 @@ def main():
         )
         return z
 
-    img = Image.open(sys.argv[1])
+    img = cv2.imread(sys.argv[1])
+    if img is None:
+        raise ValueError("画像の読み込みに失敗しました")
+
     result_img = conversion(projection, img, size=3000)
-    result_img.save("result.png")
+    cv2.imwrite("result.png", result_img)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from pynojector import (
     stereographic_from_peirce_quincuncial,
 )
 import numpy as np
-from PIL import Image
+import cv2
 import tempfile
 import os
 import subprocess
@@ -77,7 +77,7 @@ def save_movie(
 
 
 def movie_iter(
-    img: Image.Image,
+    img: np.ndarray,
     width: int = 1440,
     duration: float = 3.0,
     fps: int = 60,
@@ -90,7 +90,7 @@ def movie_iter(
 ):
     logger = logging.getLogger(__name__)
     logger.info(f"Ignoring: {kwargs}")
-    aspect_ratio = img.size[0] / img.size[1]
+    aspect_ratio = img.shape[1] / img.shape[0]  # width / height
     frame_count = int(duration * fps)
     for i in tqdm.tqdm(range(frame_count)):
         shift = (np.pi * 2) * aspect_ratio * (i / frame_count)
@@ -107,8 +107,8 @@ def movie_iter(
 
 
 def make_movie(
-    img: Image.Image,
-    outfile: str,
+    img: np.ndarray,
+    basename: str,
     width: int = 1440,
     duration: float = 3.0,
     fps: int = 60,
@@ -117,8 +117,12 @@ def make_movie(
     tilt_angle: float = 45,
     centerx: float = 0,
     centery: float = 0,
+    **kwargs,
 ):
-    aspect_ratio = img.size[0] / img.size[1]
+    logger = logging.getLogger(__name__)
+    logger.info(f"Ignoring: {kwargs}")
+    outfile = f"{basename}.swirl.mp4"
+    aspect_ratio = img.shape[1] / img.shape[0]  # width / height
     frame_count = int(duration * fps)
     with tempfile.TemporaryDirectory() as temp_dir:
         for i in tqdm.tqdm(range(frame_count)):
@@ -133,7 +137,13 @@ def make_movie(
                 centery=centery,
             )
             frame_path = os.path.join(temp_dir, f"frame_{i:06d}.jpg")
-            conversion(projector=projector, src_image=img, size=width).save(frame_path)
+            double_frame = conversion(
+                projector=projector, src_image=img, size=width * 2
+            )
+            full_frame = cv2.resize(
+                double_frame, (width, width), interpolation=cv2.INTER_CUBIC
+            )
+            cv2.imwrite(frame_path, full_frame)
 
         save_movie(temp_dir, output=outfile, fps=fps)
 
@@ -149,19 +159,19 @@ def get_parser():
         help="Duration of the movie (seconds)-- 1,100",
     )
     parser.add_argument("--fps", type=int, default=60, help="Frames per second-- 1,120")
-    parser.add_argument("--bundle", type=int, default=3, help="Number of bundles-- 1,1")
+    parser.add_argument("--bundle", type=int, default=1, help="Number of bundles-- 0,5")
     parser.add_argument(
-        "--multiple", type=int, default=9, help="Number of multiples-- 1,20"
+        "--multiple", type=int, default=6, help="Number of multiples-- 1,20"
     )
     parser.add_argument("--tilt_angle", type=float, default=45, help="Tilt angle--1,89")
     parser.add_argument(
-        "--centerx", type=float, default=0, help="Center of the swirl-- -4,4"
+        "--centerx", type=float, default=-0.33, help="Center of the swirl-- -1,1"
     )
     parser.add_argument(
-        "--centery", type=float, default=0, help="Center of the swirl-- -4,4"
+        "--centery", type=float, default=-0.33, help="Center of the swirl-- -1,1"
     )
     parser.add_argument(
-        "--width", type=int, default=1440, help="Width of the movie-- 100,1080"
+        "--width", type=int, default=1440, help="Width of the movie-- 100,10000"
     )
     return parser
 
@@ -170,16 +180,15 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    img = Image.open(args.filename)
-    outfile = f"{args.filename}.swirl.mp4"
+    img = cv2.imread(args.filename)
+    if img is None:
+        raise ValueError("画像の読み込みに失敗しました")
 
     args_dict = vars(args)
-    args_dict.pop("filename")
-    args_dict.pop("debug")
-    # print(aspect_ratio)
+
     make_movie(
         img,
-        outfile,
+        basename=args.filename,
         **args_dict,
     )
 

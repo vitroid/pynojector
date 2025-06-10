@@ -7,10 +7,10 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pillow = "^11.2.1"
 numpy = "^2.2.5"
 scipy = "^1.15.3"
 tqdm = "^4.67.1"
+opencv-python-headless = "^4.11.0.86"
 
 
 [build-system]
