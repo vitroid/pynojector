@@ -97,6 +97,17 @@ def flip(z: np.ndarray) -> np.ndarray:
     return -z
 
 
+def flip_x(z: np.ndarray) -> np.ndarray:
+    x = z.real
+    y = z.imag
+    det = x**2 + y**2
+    return (y**2 - x**2) / det + 1j * 2 * x * y / det
+
+
+def flip_y(z: np.ndarray) -> np.ndarray:
+    return -flip_x(z)
+
+
 def equirectangular_rotation(z: np.ndarray, theta: float) -> np.ndarray:
     """
     z: equirectangular coordinate
@@ -176,36 +187,6 @@ def imagestrip_from_mercator_ribbon(z: np.ndarray, theta: float) -> np.ndarray:
     return x_image + 1j * y_image
 
 
-def projection(z: np.ndarray) -> np.ndarray:
-
-    # 関数名のつけかたに困惑している。
-    # 一番左に、原画像の形式があり、一番右に、出力画像の形式がくるんだが、データの流れは逆向きなんだよね。
-
-    # return mercator_from_equirectangular(equirectangular_from_mercator(z))
-    # return equirectangular_from_mercator(z)
-    # return z
-    # return stereographic_from_equirectangular(equirectangular_from_stereographic(z))
-    # return np.log(0.5 + z / 2)
-    # return mercator_from_stereographic(
-    #     stereographic_from_peirce_quincuncial(z)
-    # )
-    # return mercator_from_equirectangular(equirectangular_rotation(z, np.radians(30)))
-    # return mercator_from_equirectangular(z)
-    z = flip(
-        stack_from_imagestrip(
-            z=imagestrip_from_mercator_ribbon(
-                z=stack_from_imagestrip(
-                    z=mercator_from_stereographic(z=z),
-                    stack_height=9,
-                ),
-                theta=np.radians(45),
-            ),
-            stack_height=7,
-        )
-    )
-    return z
-
-
 def conversion(
     projector: Callable[[np.ndarray, float], np.ndarray],
     src_image: Image.Image,
@@ -233,6 +214,35 @@ def conversion(
 
 
 def main():
+    def projection(z: np.ndarray) -> np.ndarray:
+
+        # 関数名のつけかたに困惑している。
+        # 一番左に、原画像の形式があり、一番右に、出力画像の形式がくるんだが、データの流れは逆向きなんだよね。
+
+        # return mercator_from_equirectangular(equirectangular_from_mercator(z))
+        # return equirectangular_from_mercator(z)
+        # return z
+        # return stereographic_from_equirectangular(equirectangular_from_stereographic(z))
+        # return np.log(0.5 + z / 2)
+        # return mercator_from_stereographic(
+        #     stereographic_from_peirce_quincuncial(z)
+        # )
+        # return mercator_from_equirectangular(equirectangular_rotation(z, np.radians(30)))
+        # return mercator_from_equirectangular(z)
+        z = flip(
+            stack_from_imagestrip(
+                z=imagestrip_from_mercator_ribbon(
+                    z=stack_from_imagestrip(
+                        z=mercator_from_stereographic(z=z),
+                        stack_height=9,
+                    ),
+                    theta=np.radians(45),
+                ),
+                stack_height=7,
+            )
+        )
+        return z
+
     img = Image.open(sys.argv[1])
     result_img = conversion(projection, img, size=3000)
     result_img.save("result.png")
