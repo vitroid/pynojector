@@ -27,34 +27,33 @@ def swirl_projection(
     tilt_angle: float = 45,
     centerx: float = 0,
     centery: float = 0,
+    head_right: bool = False,
 ) -> np.ndarray:
 
     # 関数名のつけかたに困惑している。
     # 一番左に、原画像の形式があり、一番右に、出力画像の形式がくるんだが、データの流れは逆向きなんだよね。
 
-    z = flip(
-        z=translate(
-            z=stack_from_imagestrip(
-                z=imagestrip_from_mercator_ribbon(
-                    z=stack_from_imagestrip(
-                        z=mercator_from_stereographic(
-                            z=translate(
-                                z=z, dx=centerx * 2 * np.pi, dy=centery * 2 * np.pi
-                            )
-                        ),
-                        # z=mercator_from_stereographic(
-                        #     z=stereographic_from_peirce_quincuncial(z=z)
-                        # ),
-                        stack_height=multiple,
+    z = translate(
+        z=stack_from_imagestrip(
+            z=imagestrip_from_mercator_ribbon(
+                z=stack_from_imagestrip(
+                    z=mercator_from_stereographic(
+                        z=translate(z=z, dx=centerx * 2 * np.pi, dy=centery * 2 * np.pi)
                     ),
-                    theta=np.radians(tilt_angle),
+                    # z=mercator_from_stereographic(
+                    #     z=stereographic_from_peirce_quincuncial(z=z)
+                    # ),
+                    stack_height=multiple,
                 ),
-                stack_height=bundle,
+                theta=np.radians(tilt_angle),
             ),
-            dx=-shift,
-            dy=0,
-        )
+            stack_height=bundle,
+        ),
+        dx=-shift,
+        dy=0,
     )
+    if head_right:
+        z = flip(z=z)
     return z
 
 
@@ -86,14 +85,24 @@ def movie_iter(
     tilt_angle: float = 45,
     centerx: float = 0,
     centery: float = 0,
+    debug: bool = False,
+    head_right: bool = False,
     **kwargs,
 ):
     logger = logging.getLogger(__name__)
-    logger.info(f"Ignoring: {kwargs}")
+    if debug:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+    logger.debug(f"Ignoring: {kwargs}")
+
     aspect_ratio = img.shape[1] / img.shape[0]  # width / height
     frame_count = int(duration * fps)
     for i in tqdm.tqdm(range(frame_count)):
-        shift = (np.pi * 2) * aspect_ratio * (i / frame_count)
+        if head_right:
+            shift = (np.pi * 2) * aspect_ratio * (i / frame_count)
+        else:
+            shift = -(np.pi * 2) * aspect_ratio * (i / frame_count)
         projector = lambda z: swirl_projection(
             z=z,
             shift=shift,
@@ -102,6 +111,7 @@ def movie_iter(
             tilt_angle=tilt_angle,
             centerx=centerx,
             centery=centery,
+            head_right=head_right,
         )
         yield conversion(projector=projector, src_image=img, size=width)
 
@@ -117,39 +127,45 @@ def make_movie(
     tilt_angle: float = 45,
     centerx: float = 0,
     centery: float = 0,
+    debug: bool = False,
+    head_right: bool = False,
     **kwargs,
 ):
     logger = logging.getLogger(__name__)
-    logger.info(f"Ignoring: {kwargs}")
-    outfile = f"{basename}.swirl.mp4"
-    aspect_ratio = img.shape[1] / img.shape[0]  # width / height
-    frame_count = int(duration * fps)
+    if debug:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+    logger.debug(f"Ignoring: {kwargs}")
+
     with tempfile.TemporaryDirectory() as temp_dir:
-        for i in tqdm.tqdm(range(frame_count)):
-            shift = (np.pi * 2) * aspect_ratio * (i / frame_count)
-            projector = lambda z: swirl_projection(
-                z=z,
-                shift=shift,
+        for i, double_frame in enumerate(
+            movie_iter(
+                img,
+                width=width * 2,
+                duration=duration,
+                fps=fps,
                 bundle=bundle,
                 multiple=multiple,
                 tilt_angle=tilt_angle,
                 centerx=centerx,
                 centery=centery,
+                debug=debug,
+                head_right=head_right,
             )
+        ):
             frame_path = os.path.join(temp_dir, f"frame_{i:06d}.jpg")
-            double_frame = conversion(
-                projector=projector, src_image=img, size=width * 2
-            )
             full_frame = cv2.resize(
                 double_frame, (width, width), interpolation=cv2.INTER_CUBIC
             )
             cv2.imwrite(frame_path, full_frame)
 
+        outfile = f"{basename}.swirl.mp4"
         save_movie(temp_dir, output=outfile, fps=fps)
 
 
 def get_parser():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Make a swirl movie")
     parser.add_argument("filename", type=str, help="Input image file")
     parser.add_argument("--debug", action="store_true", help="Debug mode")
     parser.add_argument(

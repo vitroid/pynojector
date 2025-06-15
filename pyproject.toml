@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pynojector"
-version = "0.1.0"
+version = "0.3.1"
 description = ""
 authors = ["vitroid <vitroid@gmail.com>"]
 readme = "README.md"
@@ -21,4 +21,6 @@ build-backend = "poetry.core.masonry.api"
 name = "pynojector"
 
 [tool.poetry.plugins."trainscanner.converters"]
-swirl = "pynojector.swirl:get_parser"
+swirl = "pynojector.trainscanner_plugins.swirl:get_parser"
+swirl_pano = "pynojector.trainscanner_plugins.swirl_pano:get_parser"
+square_pano = "pynojector.trainscanner_plugins.square_pano:get_parser"

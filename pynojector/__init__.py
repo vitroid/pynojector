@@ -133,8 +133,6 @@ def equirectangular_rotation(z: np.ndarray, theta: float) -> np.ndarray:
     # 球面座標を緯度経度に
     lat_new = np.arcsin(XYZ_rot[2])
     lon_new = np.arctan2(XYZ_rot[1], XYZ_rot[0])
-    print(lon[:10], lon_new[:10])
-    print(lat[:10], lat_new[:10])
     return lon_new + 1j * lat_new
 
 
