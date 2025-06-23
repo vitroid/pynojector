@@ -52,8 +52,8 @@ def swirl_projection(
         dx=-shift,
         dy=0,
     )
-    if head_right:
-        z = flip(z=z)
+    # if head_right:
+    z = flip(z=z)
     return z
 
 
@@ -129,6 +129,8 @@ def make_movie(
     centery: float = 0,
     debug: bool = False,
     head_right: bool = False,
+    crf: int = 21,
+    imageseq: bool = False,
     **kwargs,
 ):
     logger = logging.getLogger(__name__)
@@ -138,7 +140,10 @@ def make_movie(
         logger.setLevel(logging.INFO)
     logger.debug(f"Ignoring: {kwargs}")
 
-    with tempfile.TemporaryDirectory() as temp_dir:
+    if imageseq:
+        # make a dir for images
+        dirname = f"{basename}.swirl"
+        os.makedirs(dirname, exist_ok=True)
         for i, double_frame in enumerate(
             movie_iter(
                 img,
@@ -154,14 +159,36 @@ def make_movie(
                 head_right=head_right,
             )
         ):
-            frame_path = os.path.join(temp_dir, f"frame_{i:06d}.jpg")
+            frame_path = os.path.join(dirname, f"{i:06d}.jpg")
             full_frame = cv2.resize(
                 double_frame, (width, width), interpolation=cv2.INTER_CUBIC
             )
             cv2.imwrite(frame_path, full_frame)
+    else:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, double_frame in enumerate(
+                movie_iter(
+                    img,
+                    width=width * 2,
+                    duration=duration,
+                    fps=fps,
+                    bundle=bundle,
+                    multiple=multiple,
+                    tilt_angle=tilt_angle,
+                    centerx=centerx,
+                    centery=centery,
+                    debug=debug,
+                    head_right=head_right,
+                )
+            ):
+                frame_path = os.path.join(temp_dir, f"frame_{i:06d}.jpg")
+                full_frame = cv2.resize(
+                    double_frame, (width, width), interpolation=cv2.INTER_CUBIC
+                )
+                cv2.imwrite(frame_path, full_frame)
 
-        outfile = f"{basename}.swirl.mp4"
-        save_movie(temp_dir, output=outfile, fps=fps)
+            outfile = f"{basename}.swirl.mp4"
+            save_movie(temp_dir, output=outfile, fps=fps, crf=crf)
 
 
 def get_parser():
@@ -172,22 +199,35 @@ def get_parser():
         "--duration",
         type=float,
         default=3.0,
-        help="Duration of the movie (seconds)-- 1,100",
+        help="Duration of the movie (seconds)-- 1:100",
     )
-    parser.add_argument("--fps", type=int, default=60, help="Frames per second-- 1,120")
-    parser.add_argument("--bundle", type=int, default=1, help="Number of bundles-- 0,5")
+    parser.add_argument("--fps", type=int, default=60, help="Frames per second-- 1:120")
+    parser.add_argument("--bundle", type=int, default=1, help="Number of bundles-- 0:5")
     parser.add_argument(
-        "--multiple", type=int, default=6, help="Number of multiples-- 1,20"
+        "--multiple", type=int, default=6, help="Number of multiples-- 1:20"
     )
-    parser.add_argument("--tilt_angle", type=float, default=45, help="Tilt angle--1,89")
+    parser.add_argument("--tilt_angle", type=float, default=45, help="Tilt angle--1:89")
     parser.add_argument(
-        "--centerx", type=float, default=-0.33, help="Center of the swirl-- -1,1"
-    )
-    parser.add_argument(
-        "--centery", type=float, default=-0.33, help="Center of the swirl-- -1,1"
+        "--centerx", type=float, default=-0.33, help="Center of the swirl-- -1:1"
     )
     parser.add_argument(
-        "--width", type=int, default=1440, help="Width of the movie-- 100,10000"
+        "--centery", type=float, default=-0.33, help="Center of the swirl-- -1:1"
+    )
+    parser.add_argument(
+        "--width", type=int, default=1440, help="Width of the movie-- 100:10000"
+    )
+    parser.add_argument(
+        "--crf",
+        "-c",
+        type=int,
+        default=21,
+        help="CRF (Constant Rate Factor)" + " -- 16:30",
+    )
+    parser.add_argument(
+        "--imageseq",
+        "-i",
+        action="store_true",
+        help="Make a sequence of images",
     )
     return parser
 
