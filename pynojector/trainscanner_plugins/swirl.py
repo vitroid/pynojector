@@ -1,20 +1,16 @@
-from pynojector import (
-    flip,
-    stack_from_imagestrip,
-    imagestrip_from_mercator_ribbon,
-    mercator_from_stereographic,
-    translate,
-    conversion,
-    stereographic_from_peirce_quincuncial,
-)
-import numpy as np
-import cv2
-import tempfile
-import os
-import subprocess
-import tqdm
 import argparse
 import logging
+import os
+import subprocess
+import tempfile
+
+import cv2
+import numpy as np
+import tqdm
+
+from pynojector import (conversion, flip, imagestrip_from_mercator_ribbon,
+                        mercator_from_stereographic, stack_from_imagestrip,
+                        stereographic_from_peirce_quincuncial, translate)
 
 __all__ = ["get_parser", "make_movie", "movie_iter"]
 
@@ -29,7 +25,6 @@ def swirl_projection(
     centery: float = 0,
     head_right: bool = False,
 ) -> np.ndarray:
-
     # 関数名のつけかたに困惑している。
     # 一番左に、原画像の形式があり、一番右に、出力画像の形式がくるんだが、データの流れは逆向きなんだよね。
 

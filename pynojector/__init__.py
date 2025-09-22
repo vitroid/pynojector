@@ -1,9 +1,11 @@
 import sys
-import numpy as np
-from typing import Callable
-import scipy.special as sp
 from dataclasses import dataclass
+from typing import Callable
+
 import cv2
+import numpy as np
+import scipy.special as sp
+from tiffeditor import TiffEditor
 
 # 長方形の画像の場合、左右を2とし、上下は周期境界とする。
 # 中心を原点とする。
@@ -82,7 +84,9 @@ def sd(u, m):
 
 
 def stereographic_from_peirce_quincuncial(z: np.ndarray) -> np.ndarray:
-    return sd(2**0.5 * z, 0.5**0.5) / 2**0.5
+    # ソースは、https://ja.wikipedia.org/wiki/パース・クインカンシャル図法
+    # 上下と左右でスケールが微妙に違うみたい。
+    return sd(2**0.5 * z / np.pi, 0.5**0.5) / 2**0.5  # * np.pi
 
 
 def translate(z: np.ndarray, dx: float, dy: float) -> np.ndarray:
@@ -98,20 +102,17 @@ def flip(z: np.ndarray) -> np.ndarray:
 
 
 def flip_x(z: np.ndarray) -> np.ndarray:
-    x = z.real
-    y = z.imag
-    det = x**2 + y**2
-    return (y**2 - x**2) / det + 1j * 2 * x * y / det
+    return z.conj()
 
 
 def flip_y(z: np.ndarray) -> np.ndarray:
-    return -flip_x(z)
+    return -z.conj()
 
 
 def equirectangular_rotation(z: np.ndarray, theta: float) -> np.ndarray:
     """
     z: equirectangular coordinate
-    theta: rotation angle in radians
+    theta: rotation angle in degrees
     """
     lon, lat = z.real, z.imag
     # 緯度経度を球面座標に
@@ -125,8 +126,8 @@ def equirectangular_rotation(z: np.ndarray, theta: float) -> np.ndarray:
     R = np.array(
         [
             [1, 0, 0],
-            [0, np.cos(theta), -np.sin(theta)],
-            [0, np.sin(theta), np.cos(theta)],
+            [0, np.cos(np.radians(theta)), -np.sin(np.radians(theta))],
+            [0, np.sin(np.radians(theta)), np.cos(np.radians(theta))],
         ]
     )
     XYZ_rot = R @ XYZ
@@ -185,17 +186,28 @@ def imagestrip_from_mercator_ribbon(z: np.ndarray, theta: float) -> np.ndarray:
 
 def conversion(
     projector: Callable[[np.ndarray, float], np.ndarray],
-    src_image: np.ndarray,
+    src_image: np.ndarray | TiffEditor,
     size: int,
+    dst_filename: str = None,
+    two_by_one: bool = False,
 ) -> np.ndarray:
     h, w = src_image.shape[:2]
     src_array = src_image.reshape(-1, 3)
 
-    dst_array = np.zeros((size**2, 3), dtype=np.uint8)
+    if two_by_one:
+        dst_array = np.zeros((size**2 // 2, 3), dtype=np.uint8)
+    else:
+        dst_array = np.zeros((size**2, 3), dtype=np.uint8)
 
-    X, Y = np.meshgrid(
-        np.linspace(-np.pi, np.pi, size), np.linspace(-np.pi, np.pi, size)
-    )
+    if two_by_one:
+        X, Y = np.meshgrid(
+            np.linspace(-np.pi, np.pi, size),
+            np.linspace(-np.pi / 2, np.pi / 2, size // 2),
+        )
+    else:
+        X, Y = np.meshgrid(
+            np.linspace(-np.pi, np.pi, size), np.linspace(-np.pi, np.pi, size)
+        )
     Z = (X + 1j * Y).reshape(-1)
     Z0 = projector(Z)
     Z1 = Z0 * h / (2 * np.pi)
@@ -206,32 +218,10 @@ def conversion(
     pos = pix_x0 + pix_y0 * w
     dst_array[:] = src_array[pos, :]
 
-    return dst_array.reshape(size, size, 3)
-
-
-def main():
-    def projection(z: np.ndarray) -> np.ndarray:
-        z = flip(
-            stack_from_imagestrip(
-                z=imagestrip_from_mercator_ribbon(
-                    z=stack_from_imagestrip(
-                        z=mercator_from_stereographic(z=z),
-                        stack_height=9,
-                    ),
-                    theta=np.radians(45),
-                ),
-                stack_height=7,
-            )
-        )
-        return z
-
-    img = cv2.imread(sys.argv[1])
-    if img is None:
-        raise ValueError("画像の読み込みに失敗しました")
-
-    result_img = conversion(projection, img, size=3000)
-    cv2.imwrite("result.png", result_img)
-
-
-if __name__ == "__main__":
-    main()
+    if two_by_one:
+        dst_array = dst_array.reshape(size, size // 2, 3)
+    else:
+        dst_array = dst_array.reshape(size, size, 3)
+    if dst_filename is not None:
+        cv2.imwrite(dst_filename, dst_array)
+    return dst_array

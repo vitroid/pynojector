@@ -11,7 +11,11 @@ numpy = "^2.2.5"
 scipy = "^1.15.3"
 tqdm = "^4.67.1"
 opencv-python-headless = "^4.11.0.86"
+tiffeditor = "^0.2.0"
 
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
 
 [build-system]
 requires = ["poetry-core"]
@@ -22,5 +26,5 @@ name = "pynojector"
 
 [tool.poetry.plugins."trainscanner.converters"]
 swirl = "pynojector.trainscanner_plugins.swirl:get_parser"
-swirl_pano = "pynojector.trainscanner_plugins.swirl_pano:get_parser"
+conformal = "pynojector.trainscanner_plugins.conformal:get_parser"
 # square_pano = "pynojector.trainscanner_plugins.square_pano:get_parser"
